@@ -21,7 +21,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from uiasset.taxonomy import CLASSES  # noqa: E402
+from samout.taxonomy import CLASSES  # noqa: E402
 
 LABEL_DIR = Path(__file__).resolve().parent / "labels"
 MIN_IOU = 0.80

@@ -1,4 +1,6 @@
-# uiasset
+# samout
+
+*SAM-based asset extraction for UI mockups.*
 
 Turn a UI mockup into a **design handoff spec**: a UI tree whose leaves each carry the
 cheapest route a coding agent can use to rebuild them — write CSS, import a library
@@ -79,7 +81,7 @@ with no API call.
 ```
 run.py              orchestration only, no logic
 
-uiasset/
+samout/
   model.py          records shared by every stage; imports nothing from the package
   config.py         every tunable, each annotated calibrated-or-guessed
   vlm.py            DashScope client

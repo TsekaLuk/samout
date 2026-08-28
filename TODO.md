@@ -59,7 +59,7 @@ SAM 3 returns one box for "translucent disc + play glyph" and one for "card = ph
 caption". Four to ten errors trace here, and it is why two venue photographs never
 reach the asset list. No matte and no rule can recover a wrong region.
 
-`uiasset/split.py` exists, is **gated off**, and works in the core: 5 of 6 attempts
+`samout/split.py` exists, is **gated off**, and works in the core: 5 of 6 attempts
 pulled the play glyph cleanly out of its disc, thresholds calibrated with wide margins
 (true splits area_frac 0.18–0.25 / contrast 132–190; the one false split 0.54 / 26).
 

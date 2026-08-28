@@ -13,15 +13,15 @@ from pathlib import Path
 
 from PIL import Image
 
-from uiasset import handoff, uitree
-from uiasset.components import consensus, group, probes_disagree
-from uiasset.config import Config
-from uiasset.crops import CropSource, write_cutouts
-from uiasset.detect import describe, detect, measure
-from uiasset.split import split_regions
-from uiasset.uidetect import detect_and_merge
-from uiasset.observe import observe, recall_audit
-from uiasset.store import Store
+from samout import handoff, uitree
+from samout.components import consensus, group, probes_disagree
+from samout.config import Config
+from samout.crops import CropSource, write_cutouts
+from samout.detect import describe, detect, measure
+from samout.split import split_regions
+from samout.uidetect import detect_and_merge
+from samout.observe import observe, recall_audit
+from samout.store import Store
 
 
 def ref_measured(ref):
@@ -219,7 +219,7 @@ def main():
 
     gen = []
     if args.generate:
-        from uiasset.generate import generate_all
+        from samout.generate import generate_all
         print("[generate]")
         gen = generate_all(spec, store.cutouts, args.out / "generated",
                            **({"model": args.image_model} if args.image_model else {}))

@@ -3,7 +3,7 @@
 Kept for provenance, not imported by anything. See `../INSIGHTS.md`.
 
 - `classify_vlm.py` — asked the VLM for a css/library/asset **verdict**. Replaced by
-  `uiasset/observe.py` + `uiasset/taxonomy.py` after the model rationalised the same
+  `samout/observe.py` + `samout/taxonomy.py` after the model rationalised the same
   six icons into the wrong bucket twice, in opposite directions. INSIGHTS aha #3-4.
 - `policy.py` — routing as a cost model: the VLM estimates per-path reproduction risk,
   code picks the cheapest path under a tolerance `tau`. A good framing, and a better one
