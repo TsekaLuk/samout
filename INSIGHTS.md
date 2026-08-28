@@ -541,7 +541,41 @@ refused a cutout. Both times the summary sent someone to debug a rule that was
 working. Skips, refusals and failures are three different things and a report that
 merges them is worse than no report.
 
-### 21. A model's blind spots are information, not just limitations
+### 21. One field for two opposite treatments guarantees one of them is wrong
+
+A generated video thumbnail came back with "74.1万 / 1225 / 02:29" painted into it —
+live view counts, baked into an asset. The failure ran through three layers, and
+each is a general shape.
+
+**The field conflated two things.** `has_baked_text` asks "is there text in these
+pixels", but text in a region is two unrelated cases needing opposite handling:
+
+| | example | correct action |
+|---|---|---|
+| the letterforms ARE the art | a neon LET'S SING, a wordmark | reproduce exactly |
+| a runtime value drawn over the art | view counts, duration, price | exclude; CSS renders it |
+
+Splitting into `text_role: artwork / live_data / none` is not a finer taxonomy for
+its own sake — it is the minimum needed for the two branches to exist at all. And
+it is answerable: "does this value change at runtime" is a fact.
+
+**The action pointed the wrong way.** On detecting baked text the prompt said
+"reproduce any lettering exactly as shown" — *strengthening* the thing that had just
+been flagged as a defect. Correct for a neon sign, exactly backwards for a counter.
+Detecting a problem and then reinforcing it is easy to write and invisible in review.
+
+**A prohibition lost to a description.** After splitting the field, the generated
+prompt still carried "overlay with view count and like count in bottom-left corner",
+because the observer's job is to describe what it sees — and it saw them. A concrete
+clause beats a later "do not draw overlays" every time. The fix is to strip the
+clause at the point of use rather than ask the describer to censor itself: **remove
+the request, do not append a refusal.**
+
+One more that fell out: "reproduce every element in the reference" and "omit the
+overlay" contradict each other, because the overlay *is* in the reference. Scoping
+one to "every element OF THE ARTWORK" resolves it without weakening either.
+
+### 22. A model's blind spots are information, not just limitations
 
 We logged `panel`, `card`, `navigation bar`, `section`, `container` returning zero hits
 as a vocabulary quirk. It was not a quirk. **SAM 3 does not model layout at all** — it

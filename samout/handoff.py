@@ -68,7 +68,10 @@ REFERENCE_THIN_PX = 0
 def _flags(cls, obs, node, component_size, spec_class_of_ancestor, node_size=None):
     """Handoff defects, in the vocabulary a design review would use."""
     out = []
-    if obs.get("has_baked_text"):
+    if obs.get("text_role") == "live_data":
+        out.append("overlay: the region carries runtime values (counts, duration, "
+                   "price) — render them in CSS over the asset, not into it")
+    elif obs.get("has_baked_text"):
         out.append("i18n: copy baked into pixels, cannot be localized")
     if cls == "brand_asset":
         out.append("brand: extract exactly, do not regenerate")
@@ -221,8 +224,8 @@ def build(regions, nodes, observations, components, describe=None, measured=None
                             sorted(r.labels.items(), key=lambda kv: -kv[1])},
             "observed": {k: obs.get(k) for k in
                          ("content_type", "hue_count", "depth_cues", "is_brand_mark",
-                          "has_baked_text", "needs_transparency", "theme_dependent",
-                          "closest_library_icon", "confidence")},
+                          "has_baked_text", "text_role", "needs_transparency",
+                          "theme_dependent", "closest_library_icon", "confidence")},
             "reference": describe.get(rid, {}),
             "measured": measured.get(rid, {}),
             "flags": _flags(cls, obs, node, comp_size.get(rid, 1), anc,

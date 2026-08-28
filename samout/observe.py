@@ -72,6 +72,19 @@ For each region report:
 `has_baked_text` — is readable copy rendered INTO the pixels, such that translating the
   product would require new art? Text beside the region does not count.
 
+`text_role` — if there IS text in the region, what kind, because the two get opposite
+  treatment and conflating them bakes live data into an asset:
+  "artwork"   the letterforms ARE the art and must be reproduced exactly: a neon sign
+              reading LET'S SING, a stylised badge, a wordmark, a headline drawn as
+              part of the illustration. Remove it and the asset is wrong.
+  "live_data" a value the product renders OVER the image and updates at runtime: view
+              and comment counts, durations, prices, dates, ratings, unread badges,
+              usernames. It belongs to the code, not the asset. It is usually in a
+              corner, in a plain UI typeface, over a scrim.
+  "none"      no readable text.
+  When both appear, answer "live_data" — the overlay is the part that must not be
+  baked in.
+
 `needs_transparency` — must this sit on a varying background, requiring an alpha channel?
 
 `theme_dependent` — would this need a different version in light vs dark theme?
@@ -85,12 +98,15 @@ OUTPUT: JSON array, one entry per id shown, no prose.
    "depth_cues": [<terms from the list above>],
    "is_brand_mark": <bool>,
    "has_baked_text": <bool>,
+   "text_role": "artwork"|"live_data"|"none",
    "needs_transparency": <bool>,
    "theme_dependent": <bool>,
    "closest_library_icon": "<e.g. 'lucide:map-pin', or null if not a pictogram>",
    "confidence": 0.0-1.0,
    "regen_prompt": "<standalone prompt for an image model to recreate this region — \
-subject, material, lighting, palette, background handling. null for text/control/plain>"}
+subject, material, lighting, palette, background handling. Describe ONLY the artwork: \
+never mention overlaid counts, durations, prices, badges or timestamps, because naming \
+them makes the model paint them in. null for text/control/plain>"}
 ]
 Return an entry for EVERY id shown. Do not skip any."""
 

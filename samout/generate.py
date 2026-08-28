@@ -114,6 +114,25 @@ def fetch(url, out_path, retries=3, timeout=180):
     raise RuntimeError(f"download failed after {retries} tries — {last}")
 
 
+_OVERLAY_WORDS = ("overlay", "view count", "play count", "like count",
+                  "comment count", "duration", "timestamp", "time stamp",
+                  "badge", "watermark", "counter", "corner text", "live badge",
+                  "price tag", "rating", "subtitle bar")
+
+
+def _drop_overlay_clauses(text):
+    """Remove clauses that describe interface chrome layered over the artwork.
+
+    Clause-level rather than word-level: cutting single words leaves fragments that
+    read as instructions of their own. If every clause mentions an overlay the
+    original is returned — a bad prompt beats an empty one.
+    """
+    parts = [c.strip() for c in text.replace(";", ",").split(",")]
+    keep = [c for c in parts
+            if c and not any(w in c.lower() for w in _OVERLAY_WORDS)]
+    return ", ".join(keep) if keep else text
+
+
 def build_prompt(entry):
     """Assemble the regen prompt from the handoff entry.
 
@@ -121,7 +140,18 @@ def build_prompt(entry):
     description, so the model is anchored to what is actually in the image.
     """
     regen = entry.get("regen") or {}
-    bits = [regen.get("prompt") or entry.get("subject") or "UI asset"]
+    base = regen.get("prompt") or entry.get("subject") or "UI asset"
+
+    # Strip the overlay out of the DESCRIPTION, not just forbid it in an instruction.
+    # Telling the observer "do not mention counts" does not work — its job is to
+    # describe what it sees, and it sees them. And a concrete clause ("overlay with
+    # view count in the bottom-left corner") beats a later prohibition every time:
+    # the model painted "74.1万 / 1225 / 02:29" into a thumbnail because the prompt
+    # asked for it. Remove the request at the point of use.
+    if (entry.get("observed") or {}).get("text_role") == "live_data":
+        base = _drop_overlay_clauses(base)
+
+    bits = [base]
     pal = regen.get("palette") or []
     if pal:
         bits.append("Palette: " + ", ".join(pal[:4]) + ".")
@@ -131,7 +161,20 @@ def build_prompt(entry):
     if entry.get("class") == "product_icon":
         bits.append("A single app icon, no text, no border, no frame, no background "
                     "scene.")
-    if entry.get("observed", {}).get("has_baked_text"):
+    # Text in a region is two different things and they need opposite handling. A
+    # neon sign IS the artwork; a view count is a value the product renders over it.
+    # One field for both meant "text detected -> reproduce it exactly", which baked
+    # "74.1万 / 1225 / 02:29" into a thumbnail asset. Those belong to the code.
+    role = (entry.get("observed") or {}).get("text_role")
+    if role == "artwork":
+        bits.append("Reproduce the lettering exactly as shown in the reference — the "
+                    "letterforms are part of the artwork.")
+    elif role == "live_data":
+        bits.append("Do NOT draw any overlaid interface text: no view counts, "
+                    "comment counts, durations, timestamps, prices or badges. The "
+                    "product renders those over the image at runtime. Produce the "
+                    "underlying artwork only, clean behind where they sat.")
+    elif entry.get("observed", {}).get("has_baked_text"):
         bits.append("Reproduce any lettering exactly as shown in the reference.")
 
     # Fidelity clamps. Without them the model drifts both ways within one class:
@@ -140,11 +183,14 @@ def build_prompt(entry):
     # nowhere in the reference. For reference-matching work inventing is as damaging
     # as omitting — either way the asset stops matching the design.
     if entry.get("class") in ("spot_illustration", "photography", "product_icon"):
-        bits.append("Reproduce EVERY element present in the reference. Props, "
-                    "accessories, held objects and background items belong to the "
-                    "subject; do not drop them.")
-        bits.append("Add nothing that is not in the reference — no extra text, "
-                    "badges, labels, borders or objects.")
+        # Scoped to the artwork on purpose. "Reproduce every element" and "omit the
+        # overlay" contradict each other, because the overlay IS in the reference;
+        # saying "every element OF THE ARTWORK" resolves it without weakening either.
+        bits.append("Reproduce every element OF THE ARTWORK present in the "
+                    "reference. Props, accessories, held objects and background "
+                    "items belong to the subject; do not drop them.")
+        bits.append("Add no artwork element that is not in the reference — no extra "
+                    "text, badges, labels, borders or objects.")
     return " ".join(bits)
 
 
