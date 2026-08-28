@@ -158,6 +158,49 @@ def test_grids():
     check("irregular spacing is not a grid", len(handoff.find_grids(scattered)) == 0)
 
 
+# --- rule set ---------------------------------------------------------------
+
+def test_rules():
+    print("rule set")
+    from samout.rules import Context, audit, describe
+    from samout.ruleset import RULES, classify as apply_rules
+
+    check("rule set audits clean", not audit(RULES), "; ".join(audit(RULES)))
+    check("every rule states a reason", all(r.why for r in RULES))
+    check("every rule cites evidence or is definitional",
+          all(r.evidence or r.tags for r in RULES))
+    check("rule set is printable", len(describe(RULES).splitlines()) >= len(RULES))
+
+    # The decisions the branch chain used to make, now pinned per rule.
+    cases = [
+        ("brand mark", Context(obs={"is_brand_mark": True}), "brand_asset", "brand_mark"),
+        ("region holding a mark",
+         Context(obs={"is_brand_mark": True}, children=[1, 2]),
+         "composite", "region_containing_a_mark"),
+        ("container", Context(obs={"content_type": "pictogram"}, children=[1]),
+         "composite", "composite_container"),
+        ("split shell", Context(obs={"content_type": "plain"}, is_split_parent=True),
+         "token", "split_container_shell"),
+        ("filled control", Context(obs={"content_type": "control"}),
+         "token", "filled_control"),
+        ("live text", Context(obs={"content_type": "text"}),
+         "typography", "live_text"),
+        ("display lettering", Context(obs={"content_type": "display_lettering"}),
+         "spot_illustration", "display_lettering"),
+        ("unobserved", Context(obs={}), "unobserved", "unobserved"),
+    ]
+    for label, ctx, want_cls, want_rule in cases:
+        cls, why, rule, _ = apply_rules(ctx)
+        check(f"{label} -> {want_cls}", cls == want_cls and rule == want_rule,
+              f"got {cls} via {rule}")
+
+    # Identity must beat structure, structure must beat content.
+    c = Context(obs={"is_brand_mark": True, "content_type": "photographic"})
+    check("identity outranks content", apply_rules(c)[0] == "brand_asset")
+    c = Context(obs={"content_type": "photographic"}, children=[1, 2])
+    check("structure outranks content", apply_rules(c)[0] == "composite")
+
+
 # --- weights ----------------------------------------------------------------
 
 def test_weights():
@@ -176,7 +219,7 @@ def test_weights():
 
 def main():
     for fn in (test_geometry, test_taxonomy, test_consensus, test_shape_vector,
-               test_matte, test_tree, test_grids, test_weights):
+               test_matte, test_tree, test_grids, test_rules, test_weights):
         fn()
     print()
     if FAILED:

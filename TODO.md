@@ -152,6 +152,47 @@ accepts precomputed `vision_embeds`; encode once, reuse across prompts. Untested
 
 ---
 
+## The two abstractions the rules are standing in for
+
+Forty branches had accumulated across four functions. They are now records in
+`ruleset.py` — listable, testable, explainable — but that is containment, not a
+cure. Auditing what forced each one, they fall into two groups, and each group is
+one missing concept:
+
+### A. Z-order — the pipeline has no model of layers
+
+| patch | what it really is |
+|---|---|
+| `text_role: live_data` excludes view counts | a data layer over an image layer |
+| stripping overlay clauses from the prompt | same |
+| splitting "translucent disc + glyph" | a container layer under an icon layer |
+| popover occlusion (unfixed) | an overlay layer over the page |
+
+Four patches, one cause: **a UI is composited, and this treats it as one flat
+image.** The correct primitive is that a region's asset is what sits on *its* layer,
+not everything visible inside its rectangle. Until that exists, every new kind of
+stacking costs another rule.
+
+### B. Region extent vs semantic extent
+
+| patch | what it really is |
+|---|---|
+| `brand_asset` with >=2 children downgrades | the box is larger than the mark |
+| a tap target enclosing one region is a hit area | the interaction box is larger than the icon |
+| `split.py` | one box holding two things |
+| `find_grids` | many boxes holding one thing |
+
+**A detected box is assumed to be one semantic unit and frequently is not** — in
+both directions. `split` and `find_grids` are one-off answers to the two halves.
+
+### Why neither is being built yet
+
+Three screens of evidence. Both were verified against the patches above rather than
+argued for — the layer model explains 4 of 6 and does *not* explain the other 2,
+which is how the second abstraction was found. Building either on three screens
+would repeat the mistake this file already records twice: a model fitted to the data
+in front of it. The next thing to do is more screens, not more architecture.
+
 ## Open, and not yet answerable
 
 ### Generation quality on thin references

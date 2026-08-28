@@ -140,58 +140,25 @@ def build(regions, nodes, observations, components, describe=None, measured=None
             comp_size[rid] = c.count
 
     # First pass: class only, so ancestors can be consulted in the second.
-    class_of, why_of = {}, {}
+    # Every branch that used to live here is now a record in `ruleset.RULES`, so
+    # the decision for a region can be listed, explained and tested rather than
+    # reconstructed by reading control flow. Behaviour is unchanged.
+    from .rules import Context
+    from .ruleset import classify as apply_rules
+
+    class_of, why_of, rule_of = {}, {}, {}
     for rid, node in nodes.items():
         obs = observations.get(rid, {})
-        # Content outranks structure. A region that IS art does not stop being art
-        # because something was detected inside it — a neon sign spotted within a
-        # venue photograph is part of that photograph, not a sibling of it, and the
-        # photo still has to ship as a raster asset. Letting `composite` win here
-        # turned two venue photos into layout containers and dropped them from the
-        # asset list entirely; the same ordering bug previously stripped a brand
-        # badge of its never-regenerate flag.
-        if obs.get("is_brand_mark") and len(node.children) < MARK_MAX_CHILDREN:
-            class_of[rid] = "brand_asset"
-            why_of[rid] = "identity-locked mark (outranks structure)"
-        elif obs.get("is_brand_mark"):
-            # The observer says "brand" for a region that merely CONTAINS the logo:
-            # a top app bar (4 children: clock, status, logo, scan), a benefits row
-            # (5), a product card (2). Marked as art, a coding agent would extract
-            # the whole strip instead of the wordmark inside it — and the error is
-            # invisible downstream, because the class looks right.
-            #
-            # A lockup decomposes into at most one separately-detected part (a crown
-            # over "VIP"); a container holds several distinct elements. Measured
-            # across two screens: real marks had 0-1 children, every false one had
-            # 2, 4 or 5. The mark itself is still classified on its own region.
-            class_of[rid] = "composite"
-            why_of[rid] = (f"contains a brand mark but holds {len(node.children)} "
-                           "classified elements — a region with a logo, not a logo")
-        elif obs.get("content_type") in ATOMIC_CONTENT:
-            cls, why = classify(obs, measured.get(rid), describe.get(rid))
-            class_of[rid] = cls
-            why_of[rid] = f"{why} (content outranks structure; children are part of it)"
-        elif rid in split_parents:
-            # We took this region apart ourselves, so we know what the remainder is.
-            # The split gate only fires on high interior variance — a shell you can
-            # see the backdrop through — so what is left after lifting the glyph out
-            # is a translucent disc or pill, which is CSS.
-            #
-            # This is safe where the earlier "content outranks structure" attempt was
-            # not: that one used `content_type == photographic`, a description that
-            # fits a card as readily as the photo inside it. Here the fact is
-            # constructed by the pipeline, not inferred from a label.
-            class_of[rid] = "token"
-            why_of[rid] = "container shell left after its glyph was split out"
-        elif node.children:
-            class_of[rid] = "composite"
-            why_of[rid] = (f"{node.atomic} with {len(node.children)} children, "
-                           f"role={node.role}")
-        elif not obs:
-            class_of[rid] = "unobserved"
-            why_of[rid] = "no observation returned; rerun or inspect by hand"
-        else:
-            class_of[rid], why_of[rid] = classify(obs, measured.get(rid), describe.get(rid))
+        ctx = Context(obs=obs, measured=measured.get(rid) or {},
+                      reference=describe.get(rid) or {},
+                      children=list(node.children),
+                      size_px=tuple(by_id[rid].size),
+                      is_split_parent=rid in split_parents,
+                      atomic=node.atomic, role=node.role)
+        cls, why, rule, shadowed = apply_rules(ctx)
+        class_of[rid], why_of[rid] = cls, why
+        rule_of[rid] = {"rule": rule, "shadowed": shadowed}
+        continue
 
     spec = []
     for rid in sorted(nodes):
@@ -205,6 +172,7 @@ def build(regions, nodes, observations, components, describe=None, measured=None
             "subject": obs.get("subject"),
             "class": cls,
             "why": why_of[rid],
+            "rule": rule_of.get(rid, {}).get("rule"),
             "role": node.role,
             "atomic": node.atomic,
             "depth": node.depth,
