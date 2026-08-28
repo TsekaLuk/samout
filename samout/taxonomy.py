@@ -159,7 +159,32 @@ SYSTEM_ICON_CRITERIA = {
 }
 
 
-def classify(obs, measured=None):
+# A skeleton/loading placeholder is an achromatic block with no image in it. On a
+# live screenshot four of them were classed `photography` and `product_icon` and
+# queued for regeneration — an empty grey rectangle sent to an image model.
+#
+# Two measurements separate it from real content by an order of magnitude, and both
+# follow from what a placeholder IS rather than from fitting: it is drawn in a
+# neutral grey (no hue) and it is flat (no detail). Measured on a real page:
+#     saturation   placeholders 0.009-0.015   content 0.227-0.737
+#     entropy      placeholders 2.47-2.82     content 6.86-7.83
+# Thresholds sit in the middle of both gaps, not against either edge.
+PLACEHOLDER = {"max_saturation": 0.08, "max_entropy": 4.5, "min_px": 2000}
+
+
+def is_placeholder(measured, reference):
+    """An achromatic, featureless block — a skeleton loader, not content."""
+    m, t = measured or {}, (reference or {}).get("texture", {})
+    sat, ent = m.get("sat_mean_inner"), t.get("entropy")
+    if sat is None or ent is None:
+        return False
+    if (m.get("inner_px") or 0) < PLACEHOLDER["min_px"]:
+        return False          # small grey glyphs are legitimately achromatic
+    return (sat <= PLACEHOLDER["max_saturation"]
+            and ent <= PLACEHOLDER["max_entropy"])
+
+
+def classify(obs, measured=None, reference=None):
     """Observable properties (+ computed pixel measurements) -> design-system class.
 
     Applies the published criteria in the order a designer would: identity first
@@ -172,6 +197,9 @@ def classify(obs, measured=None):
     thing. See OPTIMIZATION.md L2.
     """
     measured = measured or {}
+
+    if is_placeholder(measured, reference):
+        return "token", "achromatic featureless block — a loading placeholder"
 
     if obs.get("is_brand_mark"):
         return "brand_asset", "identity-locked mark"

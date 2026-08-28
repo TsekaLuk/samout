@@ -480,7 +480,31 @@ more complete sibling set makes the tree's leaf-vs-container calls more accurate
 Same shape as the `bevel`/`specular_highlight` finding (#11): a feature that cannot
 separate the classes is not a threshold problem. Tabulate before tuning.
 
-### 19. A model's blind spots are information, not just limitations
+### 19. Design mockups and live screenshots fail differently
+
+Two screens in, the pipeline looked general — a dark neon app screen and a light
+design board, and the thresholds calibrated on the first held on the second. Both
+were *design mockups*: clean edges, nothing occluded, nothing mid-load.
+
+A screenshot of a live page broke three things none of them could have exposed:
+
+| | mockup | live page |
+|---|---|---|
+| skeleton loaders | absent | present, and classed `photography` — an empty grey rectangle queued for regeneration |
+| overlays | absent | a login popover sits across the nav, and nothing in the pipeline models z-order |
+| compression artifacts | absent | present |
+
+The placeholder case was the fixable one, and cleanly: a skeleton loader is
+achromatic and flat *by definition*, so the separation is not a fitted threshold —
+saturation 0.009-0.015 against 0.227-0.737 for real content, entropy 2.5 against
+7.4. Both gaps are an order of magnitude wide.
+
+The lesson is about test-set composition, not about placeholders. **Two inputs that
+share a provenance are close to one input.** Every screen tested had been *designed*;
+the first one that had been *rendered* moved the failure mode somewhere the existing
+tests could not reach. Vary the axis that generates the data, not just the data.
+
+### 20. A model's blind spots are information, not just limitations
 
 We logged `panel`, `card`, `navigation bar`, `section`, `container` returning zero hits
 as a vocabulary quirk. It was not a quirk. **SAM 3 does not model layout at all** — it

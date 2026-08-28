@@ -165,7 +165,7 @@ def build(regions, nodes, observations, components, describe=None, measured=None
             why_of[rid] = (f"contains a brand mark but holds {len(node.children)} "
                            "classified elements — a region with a logo, not a logo")
         elif obs.get("content_type") in ATOMIC_CONTENT:
-            cls, why = classify(obs, measured.get(rid))
+            cls, why = classify(obs, measured.get(rid), describe.get(rid))
             class_of[rid] = cls
             why_of[rid] = f"{why} (content outranks structure; children are part of it)"
         elif rid in split_parents:
@@ -188,7 +188,7 @@ def build(regions, nodes, observations, components, describe=None, measured=None
             class_of[rid] = "unobserved"
             why_of[rid] = "no observation returned; rerun or inspect by hand"
         else:
-            class_of[rid], why_of[rid] = classify(obs, measured.get(rid))
+            class_of[rid], why_of[rid] = classify(obs, measured.get(rid), describe.get(rid))
 
     spec = []
     for rid in sorted(nodes):

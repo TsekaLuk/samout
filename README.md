@@ -24,7 +24,7 @@ CSS-reproducible regions as a result.
 Output: `uitree.txt` (paste into a coding agent), `handoff.json` (per-region class,
 delivery, cost, a11y, flags, regeneration prompt), and RGBA cutouts.
 
-**Read [`INSIGHTS.md`](INSIGHTS.md) first.** It is the honest record of 18 findings and
+**Read [`INSIGHTS.md`](INSIGHTS.md) first.** It is the honest record of 19 findings and
 7 dead ends, most of them measured. The dead ends are the useful half.
 
 ---
@@ -179,7 +179,7 @@ single-run comparison, here or elsewhere.
 
 | | |
 |---|---|
-| [`INSIGHTS.md`](INSIGHTS.md) | what we learned — 18 findings, 7 dead ends, mostly measured |
+| [`INSIGHTS.md`](INSIGHTS.md) | what we learned — 19 findings, 7 dead ends, mostly measured |
 | [`BENCHMARK.md`](BENCHMARK.md) | SAM 3 prompt vocabulary, model selection, runtime |
 | [`OPTIMIZATION.md`](OPTIMIZATION.md) | error attribution framework and priorities |
 | [`TODO.md`](TODO.md) | current state, what blocks what |
