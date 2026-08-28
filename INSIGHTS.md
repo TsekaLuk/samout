@@ -504,7 +504,44 @@ share a provenance are close to one input.** Every screen tested had been *desig
 the first one that had been *rendered* moved the failure mode somewhere the existing
 tests could not reach. Vary the axis that generates the data, not just the data.
 
-### 20. A model's blind spots are information, not just limitations
+### 20. Check a method's premise before applying it, and put error handling where the cost is
+
+Three defects in the generation stage, all the same shape — the code was fine, its
+placement was not.
+
+**A scorer applied where its premise fails.** Cutout candidates are ranked by the
+variance of what is LEFT, reasoning that a correct cut leaves the flat generated
+backdrop behind. True for an icon on a plain field. For a full-bleed illustration
+the whole canvas is content, so "outside variance" measures noise — it selected a
+7% fragment of the subject and shipped a truncated sprite. The numbers even run
+backwards: cutting 7% left variance 66.5, cutting 47% left 68.4.
+
+The fix is not a better scorer. It is testing whether a backdrop exists at all, and
+that is measurable — border-ring standard deviation was 0.5 and 3.4 for icons
+against 35.5, 38.5 and 69.5 for full-bleed art. **A method that assumes something
+should verify it, not degrade silently when it is absent.**
+
+Worth noting what this is NOT: a case for handing the scorer to a VLM per image.
+Whether a backdrop *exists* is a countable fact with a 10x gap. Whether an asset
+*should* carry alpha is a judgement, and the observation stage already answers it.
+Routing the first through a model would also inject non-determinism into the one
+stage that is currently byte-reproducible.
+
+**Retries on the cheap half, none on the expensive half.** `generate` retried three
+times; `fetch` did not. So a truncated download discarded 30-180s of completed
+inference, three times in a row, with the images already sitting on the CDN.
+Resilience belongs where redoing the work costs most, not where the code looks
+important. A short read also returns HTTP 200, so the length is now verified —
+otherwise a half-written PNG lands on disk and fails later, in the matter, far from
+its cause.
+
+**A count that conflates declined with broken.** Twice now a deliberate skip was
+reported as a failure — a photograph kept framed, then an illustration correctly
+refused a cutout. Both times the summary sent someone to debug a rule that was
+working. Skips, refusals and failures are three different things and a report that
+merges them is worse than no report.
+
+### 21. A model's blind spots are information, not just limitations
 
 We logged `panel`, `card`, `navigation bar`, `section`, `container` returning zero hits
 as a vocabulary quirk. It was not a quirk. **SAM 3 does not model layout at all** — it

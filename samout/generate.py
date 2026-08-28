@@ -85,12 +85,33 @@ def generate(prompt, reference=None, model=DEFAULT_MODEL, size="1024*1024",
     raise RuntimeError(f"{model} failed — {last}")
 
 
-def fetch(url, out_path):
-    r = requests.get(url, timeout=180)
-    r.raise_for_status()
-    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(out_path).write_bytes(r.content)
-    return out_path
+def fetch(url, out_path, retries=3, timeout=180):
+    """Download with retries and a completeness check.
+
+    `generate` retried and `fetch` did not, so a truncated download threw away a
+    call that had already cost 30-180s of inference — three assets in a row died on
+    `IncompleteRead` with the images sitting ready on the CDN. The expensive half of
+    the operation deserves at least the same resilience as the cheap half.
+
+    Content-Length is verified because a short read still returns HTTP 200; without
+    the check a half-written PNG lands on disk and fails much later, in the matter.
+    """
+    last = None
+    for attempt in range(retries):
+        try:
+            r = requests.get(url, timeout=timeout, stream=True)
+            r.raise_for_status()
+            data = r.content
+            expect = r.headers.get("Content-Length")
+            if expect and len(data) < int(expect):
+                raise IOError(f"truncated: {len(data)}/{expect} bytes")
+            Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(out_path).write_bytes(data)
+            return out_path
+        except Exception as e:
+            last = f"{type(e).__name__}: {str(e)[:100]}"
+            time.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"download failed after {retries} tries — {last}")
 
 
 def build_prompt(entry):
@@ -112,7 +133,50 @@ def build_prompt(entry):
                     "scene.")
     if entry.get("observed", {}).get("has_baked_text"):
         bits.append("Reproduce any lettering exactly as shown in the reference.")
+
+    # Fidelity clamps. Without them the model drifts both ways within one class:
+    # three illustrations came back with their props deleted (a flamingo float, a
+    # bunch of roses) while another gained a headline and three tag chips that are
+    # nowhere in the reference. For reference-matching work inventing is as damaging
+    # as omitting — either way the asset stops matching the design.
+    if entry.get("class") in ("spot_illustration", "photography", "product_icon"):
+        bits.append("Reproduce EVERY element present in the reference. Props, "
+                    "accessories, held objects and background items belong to the "
+                    "subject; do not drop them.")
+        bits.append("Add nothing that is not in the reference — no extra text, "
+                    "badges, labels, borders or objects.")
     return " ".join(bits)
+
+
+def has_backdrop(img, frac=0.06, max_border_std=25.0):
+    """Is there a flat ground to lift the subject off?
+
+    The candidate scorer below ranks masks by the variance of what is LEFT, on the
+    reasoning that a correct cut leaves the generated backdrop behind. That holds
+    for an icon on a plain field and is meaningless for a full-bleed illustration,
+    where the whole canvas is content — there "outside variance" measures noise, and
+    it picked a 7% fragment of the subject and called it done.
+
+    So check the premise before applying the method. Measured across generated
+    assets, the border ring separates the two cases by an order of magnitude:
+        icon on a ground     border std 0.5, 3.4
+        full-bleed artwork   border std 69.5, 38.5, 35.5
+
+    Deliberately a measurement, not a VLM call. Whether a backdrop EXISTS is a
+    countable fact; whether an asset SHOULD carry alpha is a judgement, and the
+    observation stage already answers that one as `needs_transparency`. Routing this
+    through a model would also put non-determinism into the only stage that is
+    currently byte-reproducible.
+    """
+    import numpy as np
+
+    a = np.asarray(img.convert("RGB"), dtype=np.float32)
+    H, W, _ = a.shape
+    b = max(2, int(min(H, W) * frac))
+    ring = np.concatenate([a[:b].reshape(-1, 3), a[-b:].reshape(-1, 3),
+                           a[b:-b, :b].reshape(-1, 3), a[b:-b, -b:].reshape(-1, 3)])
+    lum = ring @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    return float(lum.std()) <= max_border_std
 
 
 def cut_out_generated(path, out_path, device="cpu", min_frac=0.03, max_frac=0.92):
@@ -137,6 +201,8 @@ def cut_out_generated(path, out_path, device="cpu", min_frac=0.03, max_frac=0.92
 
     img = Image.open(path).convert("RGB")
     W, H = img.size
+    if not has_backdrop(img):
+        return None, "full-bleed artwork — no backdrop to remove"
     model, proc = _load(device=device)
 
     # Two prompt styles, because neither works alone. A single centre point misses
@@ -306,7 +372,15 @@ def generate_all(spec, cutouts_dir, out_dir, model=DEFAULT_MODEL, workers=6,
             got, info = cut_out_generated(src, sprite, device=device)
             r["sprite"] = str(sprite) if got else None
             r["sprite_info"] = info
-            cut += 1 if got else 0
+            if got:
+                cut += 1
+            elif isinstance(info, str) and "full-bleed" in info:
+                # Refusing to cut a full-bleed illustration is the precondition
+                # working, not a failure. Same distinction as the framed
+                # photographs — a count that conflates "declined" with "broke"
+                # sends someone to debug a rule that is doing its job.
+                r["sprite_skipped"] = info
+                skipped += 1
 
     total = time.time() - t0
     if verbose:
