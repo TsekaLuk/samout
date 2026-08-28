@@ -1,0 +1,17 @@
+# Model weights — 3.5 GB, fetched by the commands in README
+models/
+
+# Environment
+.venv/
+__pycache__/
+*.pyc
+
+# Source mockups and everything derived from them. The pipeline's inputs and
+# outputs are the user's own design material; only the code and the label file
+# (region ids + classes, no pixels) are published.
+input/
+assets/
+out/
+out2/
+out3/
+plans/

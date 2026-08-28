@@ -1,0 +1,380 @@
+{
+  "_doc": "Hand-labelled ground truth for input/ktv_ui.jpeg, 53 regions. Assigned by reading the taxonomy.py criteria against the rendered contact sheet, not by asking a model.",
+  "_convention": "A region bundling a container and its glyph (translucent circle + play triangle) is labelled by what the coding agent would actually build: the glyph comes from a library, the circle is CSS. So -> system_icon.",
+  "labels": {
+    "0": "composite",
+    "1": "composite",
+    "2": "composite",
+    "3": "composite",
+    "4": "composite",
+    "5": "composite",
+    "6": "composite",
+    "7": "spot_illustration",
+    "8": "composite",
+    "9": "composite",
+    "10": "composite",
+    "11": "composite",
+    "12": "composite",
+    "13": "spot_illustration",
+    "14": "photography",
+    "15": "composite",
+    "16": "token",
+    "17": "photography",
+    "18": "spot_illustration",
+    "19": "spot_illustration",
+    "20": "brand_asset",
+    "21": "brand_asset",
+    "22": "token",
+    "23": "product_icon",
+    "24": "product_icon",
+    "25": "product_icon",
+    "26": "spot_illustration",
+    "27": "product_icon",
+    "28": "product_icon",
+    "29": "token",
+    "30": "product_icon",
+    "31": "product_icon",
+    "32": "product_icon",
+    "33": "product_icon",
+    "34": "product_icon",
+    "35": "system_icon",
+    "36": "system_icon",
+    "37": "system_icon",
+    "38": "system_icon",
+    "39": "system_icon",
+    "40": "system_icon",
+    "41": "system_icon",
+    "42": "system_icon",
+    "43": "spot_illustration",
+    "44": "system_icon",
+    "45": "system_icon",
+    "46": "system_icon",
+    "47": "system_icon",
+    "48": "spot_illustration",
+    "49": "typography",
+    "50": "system_icon",
+    "51": "system_icon",
+    "52": "system_icon"
+  },
+  "boxes": {
+    "0": [
+      40,
+      227,
+      899,
+      552
+    ],
+    "1": [
+      39,
+      561,
+      903,
+      746
+    ],
+    "2": [
+      55,
+      1418,
+      883,
+      1553
+    ],
+    "3": [
+      54,
+      812,
+      253,
+      1073
+    ],
+    "4": [
+      266,
+      813,
+      463,
+      1074
+    ],
+    "5": [
+      476,
+      815,
+      674,
+      1072
+    ],
+    "6": [
+      687,
+      815,
+      884,
+      1072
+    ],
+    "7": [
+      132,
+      265,
+      445,
+      420
+    ],
+    "8": [
+      547,
+      1153,
+      707,
+      1341
+    ],
+    "9": [
+      722,
+      1152,
+      881,
+      1341
+    ],
+    "10": [
+      56,
+      1151,
+      203,
+      1341
+    ],
+    "11": [
+      219,
+      1151,
+      367,
+      1342
+    ],
+    "12": [
+      384,
+      1152,
+      532,
+      1341
+    ],
+    "13": [
+      731,
+      849,
+      855,
+      997
+    ],
+    "14": [
+      86,
+      1158,
+      203,
+      1290
+    ],
+    "15": [
+      404,
+      1549,
+      525,
+      1666
+    ],
+    "16": [
+      190,
+      464,
+      415,
+      522
+    ],
+    "17": [
+      411,
+      1162,
+      509,
+      1286
+    ],
+    "18": [
+      654,
+      263,
+      758,
+      361
+    ],
+    "19": [
+      780,
+      262,
+      840,
+      430
+    ],
+    "20": [
+      40,
+      79,
+      222,
+      120
+    ],
+    "21": [
+      87,
+      1440,
+      170,
+      1528
+    ],
+    "22": [
+      781,
+      148,
+      893,
+      203
+    ],
+    "23": [
+      433,
+      581,
+      507,
+      653
+    ],
+    "24": [
+      259,
+      583,
+      332,
+      653
+    ],
+    "25": [
+      601,
+      585,
+      677,
+      651
+    ],
+    "26": [
+      391,
+      333,
+      467,
+      393
+    ],
+    "27": [
+      93,
+      587,
+      155,
+      650
+    ],
+    "28": [
+      781,
+      585,
+      838,
+      651
+    ],
+    "29": [
+      216,
+      1503,
+      324,
+      1535
+    ],
+    "30": [
+      625,
+      1445,
+      687,
+      1490
+    ],
+    "31": [
+      779,
+      1436,
+      833,
+      1488
+    ],
+    "32": [
+      481,
+      1439,
+      529,
+      1489
+    ],
+    "33": [
+      98,
+      1440,
+      154,
+      1483
+    ],
+    "34": [
+      442,
+      1568,
+      488,
+      1615
+    ],
+    "35": [
+      199,
+      947,
+      246,
+      992
+    ],
+    "36": [
+      620,
+      948,
+      667,
+      991
+    ],
+    "37": [
+      411,
+      948,
+      457,
+      990
+    ],
+    "38": [
+      832,
+      947,
+      877,
+      990
+    ],
+    "39": [
+      628,
+      1579,
+      673,
+      1621
+    ],
+    "40": [
+      822,
+      1578,
+      867,
+      1621
+    ],
+    "41": [
+      69,
+      1578,
+      110,
+      1621
+    ],
+    "42": [
+      242,
+      1577,
+      283,
+      1620
+    ],
+    "43": [
+      597,
+      1210,
+      651,
+      1240
+    ],
+    "44": [
+      864,
+      79,
+      900,
+      115
+    ],
+    "45": [
+      489,
+      1264,
+      524,
+      1297
+    ],
+    "46": [
+      161,
+      1264,
+      196,
+      1296
+    ],
+    "47": [
+      324,
+      1264,
+      359,
+      1296
+    ],
+    "48": [
+      812,
+      1176,
+      854,
+      1200
+    ],
+    "49": [
+      667,
+      1567,
+      698,
+      1597
+    ],
+    "50": [
+      69,
+      161,
+      100,
+      191
+    ],
+    "51": [
+      858,
+      22,
+      903,
+      42
+    ],
+    "52": [
+      768,
+      20,
+      805,
+      42
+    ]
+  },
+  "_matching": "Labels are matched to regions by box IoU >= 0.80, not by id, so this file survives changes to the detection stage. Region ids come from sorting by area and are not stable."
+}

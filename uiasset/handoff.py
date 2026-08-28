@@ -1,0 +1,305 @@
+"""Stage 5: join every stage's output into the design handoff spec.
+
+Pure — no IO, no model calls, no globals. It is the only module that imports from
+more than one sibling, and it does so to join their results, never to drive them.
+That keeps the dependency graph a DAG: everything depends on `model`, `handoff`
+depends on the pure stages, `run` depends on everything.
+
+The output is a design handoff spec, which is a real artifact a design team ships
+to engineering — not a shape invented here. Per region: what class it is, how it
+is delivered, what it costs, its accessibility treatment, and the defects a
+designer would raise at review.
+"""
+
+from .taxonomy import classify, deliver
+
+# TRIED AND REVERTED — kept as a warning, empty on purpose.
+#
+# The idea: a region that IS art should keep its class even with children, because a
+# neon sign found inside a venue photo is part of that photo. That reasoning is sound
+# for `is_brand_mark` and it is measurably wrong for content types.
+#
+# Measured: promoting `photographic` here scored 58.5% against a 70.6% +- 2.2 baseline
+# — a 12pp regression, far outside the noise band. Inspection showed why: 7 of the 9
+# regions it promoted were containers. The observer calls a playlist card
+# "photographic" because the card is mostly a photograph, so the label does not
+# distinguish "a photo" from "a card containing a photo".
+#
+# The distinction that matters: `is_brand_mark` is an exclusive factual question
+# ("is this a trademark"), while `content_type` is a description of degree that fits
+# both a container and its contents. Only the former can outrank structure.
+#
+# The underlying complaint — that venue photos never reach the asset list — is real,
+# but it is a region-granularity problem (SAM 3 returns card = photo + caption as one
+# box), not a rule-ordering one. It belongs with the bundling work.
+ATOMIC_CONTENT = set()
+
+
+def _flags(cls, obs, node, component_size, spec_class_of_ancestor):
+    """Handoff defects, in the vocabulary a design review would use."""
+    out = []
+    if obs.get("has_baked_text"):
+        out.append("i18n: copy baked into pixels, cannot be localized")
+    if cls == "brand_asset":
+        out.append("brand: extract exactly, do not regenerate")
+    if obs.get("theme_dependent"):
+        out.append("theming: needs a light and a dark variant")
+    if obs.get("needs_transparency") and deliver(cls)["delivery"].startswith("asset"):
+        out.append("alpha: deliver with transparency")
+    if (obs.get("confidence") or 1.0) < 0.5:
+        out.append("review: low observation confidence")
+    if cls == "product_icon":
+        out.append("prefer SVG redraw if the icon language is systematic")
+    if component_size > 1 and node.is_leaf:
+        out.append(f"component: {component_size} instances share this class; "
+                   "build once, reuse")
+    # A region sitting inside a photograph or an illustration ships as part of it.
+    # Routing it separately bills for art that is already in the parent's pixels.
+    if spec_class_of_ancestor in ("photography", "spot_illustration") and node.is_leaf:
+        out.append(f"absorbed: inside a {spec_class_of_ancestor} ancestor; "
+                   "delivered with the parent, not separately")
+    return out
+
+
+def _ancestor_class(rid, nodes, class_of):
+    node = nodes.get(rid)
+    seen = set()
+    while node is not None and node.parent is not None and node.parent not in seen:
+        seen.add(node.parent)
+        cls = class_of.get(node.parent)
+        if cls in ("photography", "spot_illustration", "brand_asset"):
+            return cls
+        node = nodes.get(node.parent)
+    return None
+
+
+def build(regions, nodes, observations, components, describe=None, measured=None,
+          split_parents=None):
+    """-> list[dict], one entry per region, ordered by id.
+
+    `components` is list[Component]; `describe` is the optional reference-statistics
+    map from the detection stage.
+    """
+    describe = describe or {}
+    measured = measured or {}
+    split_parents = set(split_parents or ())
+    by_id = {r.id: r for r in regions}
+    comp_of, comp_size = {}, {}
+    for c in components:
+        for rid in c.members:
+            comp_of[rid] = c.key
+            comp_size[rid] = c.count
+
+    # First pass: class only, so ancestors can be consulted in the second.
+    class_of, why_of = {}, {}
+    for rid, node in nodes.items():
+        obs = observations.get(rid, {})
+        # Content outranks structure. A region that IS art does not stop being art
+        # because something was detected inside it — a neon sign spotted within a
+        # venue photograph is part of that photograph, not a sibling of it, and the
+        # photo still has to ship as a raster asset. Letting `composite` win here
+        # turned two venue photos into layout containers and dropped them from the
+        # asset list entirely; the same ordering bug previously stripped a brand
+        # badge of its never-regenerate flag.
+        if obs.get("is_brand_mark"):
+            class_of[rid] = "brand_asset"
+            why_of[rid] = "identity-locked mark (outranks structure)"
+        elif obs.get("content_type") in ATOMIC_CONTENT:
+            cls, why = classify(obs, measured.get(rid))
+            class_of[rid] = cls
+            why_of[rid] = f"{why} (content outranks structure; children are part of it)"
+        elif rid in split_parents:
+            # We took this region apart ourselves, so we know what the remainder is.
+            # The split gate only fires on high interior variance — a shell you can
+            # see the backdrop through — so what is left after lifting the glyph out
+            # is a translucent disc or pill, which is CSS.
+            #
+            # This is safe where the earlier "content outranks structure" attempt was
+            # not: that one used `content_type == photographic`, a description that
+            # fits a card as readily as the photo inside it. Here the fact is
+            # constructed by the pipeline, not inferred from a label.
+            class_of[rid] = "token"
+            why_of[rid] = "container shell left after its glyph was split out"
+        elif node.children:
+            class_of[rid] = "composite"
+            why_of[rid] = (f"{node.atomic} with {len(node.children)} children, "
+                           f"role={node.role}")
+        elif not obs:
+            class_of[rid] = "unobserved"
+            why_of[rid] = "no observation returned; rerun or inspect by hand"
+        else:
+            class_of[rid], why_of[rid] = classify(obs, measured.get(rid))
+
+    spec = []
+    for rid in sorted(nodes):
+        r, node = by_id[rid], nodes[rid]
+        obs = observations.get(rid, {})
+        cls = class_of[rid]
+        d = deliver(cls)
+        anc = _ancestor_class(rid, nodes, class_of)
+        entry = {
+            "id": rid,
+            "subject": obs.get("subject"),
+            "class": cls,
+            "why": why_of[rid],
+            "role": node.role,
+            "atomic": node.atomic,
+            "depth": node.depth,
+            "delivery": d["delivery"],
+            "action": d["action"],
+            "cost": d["cost"],
+            "regenerable": d["regenerable"],
+            "a11y": d["a11y"],
+            "box_xyxy": [int(v) for v in r.box],
+            "size_px": list(r.size),
+            "parent": node.parent,
+            "children": node.children,
+            "layout": node.layout,
+            "component": comp_of.get(rid),
+            "component_instances": comp_size.get(rid, 1),
+            "sam3_labels": {k: round(v, 3) for k, v in
+                            sorted(r.labels.items(), key=lambda kv: -kv[1])},
+            "observed": {k: obs.get(k) for k in
+                         ("content_type", "hue_count", "depth_cues", "is_brand_mark",
+                          "has_baked_text", "needs_transparency", "theme_dependent",
+                          "closest_library_icon", "confidence")},
+            "reference": describe.get(rid, {}),
+            "measured": measured.get(rid, {}),
+            "flags": _flags(cls, obs, node, comp_size.get(rid, 1), anc),
+        }
+        if obs.get("regen_prompt") and d["delivery"].startswith("asset"):
+            entry["regen"] = {
+                "prompt": obs["regen_prompt"],
+                "needs_transparency": bool(obs.get("needs_transparency")),
+                "output_format": "png_rgba" if obs.get("needs_transparency") else "png",
+                "target_size_px": [r.size[0] * 3, r.size[1] * 3],
+                "reference": f"cutouts/{rid:02d}_cutout.png",
+                "palette": describe.get(rid, {}).get("dominant_colors", []),
+                "forbidden": (["do not synthesise — extract the original"]
+                              if cls == "brand_asset" else []),
+            }
+        spec.append(entry)
+    return spec
+
+
+def find_grids(spec, min_cells=5, size_tol=0.30, gap_cv=0.25):
+    """Group evenly-spaced same-size CSS cells into one logical component.
+
+    A calendar arrives as ~19 separate cells and a colour palette as 8 swatches,
+    because the detector finds every tappable cell but not the module around them —
+    on the test board both were top-level roots with no container to attach to. So
+    the grouping cannot come from the tree; it has to be recovered from the cells.
+
+    Regularity is the signal, and it is measurable: the palette's swatches sit at
+    x = 1191, 1219, 1245, 1270, 1295, 1321, 1346, 1374 — a gap of 25-26 every time.
+    A run of same-sized cells with a low coefficient of variation on the gaps is a
+    grid; scattered controls of similar size are not.
+
+    Additive only: cells keep their own entries and classes, and gain a `grid` id.
+    Nothing is removed, because "one calendar" and "19 cells" are both true and
+    different consumers want different ones.
+    """
+    import statistics as st
+
+    cells = [e for e in spec
+             if not e.get("children")
+             and e["delivery"] in ("css", "icon_library")]
+    used, grids = set(), []
+
+    for axis, pos, cross in ((0, lambda e: e["box_xyxy"][0], lambda e: e["box_xyxy"][1]),
+                             (1, lambda e: e["box_xyxy"][1], lambda e: e["box_xyxy"][0])):
+        pool = [e for e in cells if e["id"] not in used]
+        # A run shares a cross-axis line and a size.
+        lines = {}
+        for e in pool:
+            lines.setdefault(round(cross(e) / 8), []).append(e)
+        for row in lines.values():
+            if len(row) < min_cells:
+                continue
+            row = sorted(row, key=pos)
+            med_w = st.median(e["size_px"][axis] for e in row)
+            run = [e for e in row
+                   if abs(e["size_px"][axis] - med_w) <= size_tol * max(1, med_w)]
+            if len(run) < min_cells:
+                continue
+            gaps = [pos(run[i + 1]) - pos(run[i]) for i in range(len(run) - 1)]
+            if not gaps or st.median(gaps) <= 0:
+                continue
+            cv = (st.pstdev(gaps) / st.median(gaps)) if len(gaps) > 1 else 0.0
+            if cv > gap_cv:
+                continue
+            gid = f"g{len(grids):02d}"
+            box = [min(e["box_xyxy"][0] for e in run), min(e["box_xyxy"][1] for e in run),
+                   max(e["box_xyxy"][2] for e in run), max(e["box_xyxy"][3] for e in run)]
+            from collections import Counter
+            grids.append({"id": gid, "axis": "row" if axis == 0 else "column",
+                          "cells": len(run), "box_xyxy": box,
+                          "gap": round(st.median(gaps)),
+                          "gap_cv": round(cv, 3),
+                          "cell_classes": dict(Counter(e["class"] for e in run)),
+                          "cell_ids": [e["id"] for e in run]})
+            for e in run:
+                e["grid"] = gid
+                e["flags"].append(f"grid {gid}: one of {len(run)} evenly-spaced cells; "
+                                  "build as a single component")
+                used.add(e["id"])
+    return grids
+
+
+def mark_repeating(spec, nodes, min_children=5, max_child_frac=0.25):
+    """Flag containers whose children are a uniform run of CSS-buildable cells.
+
+    A calendar arrives as 1 container + 13 text cells + 5 glyphs; a colour palette
+    as 1 container + 8 swatches. Nothing is misclassified — every cell is correctly
+    CSS — but a coding agent wants "a calendar", not 19 entries, and the observation
+    stage paid for all 19.
+
+    This is aggregation, not correction, so it is additive: the cells stay in the
+    spec and in the tree, and the parent gains a `repeats` block plus a
+    `collapsible` flag. A consumer that wants one entry can take the parent; one
+    that wants pixel detail still has everything.
+
+    The test is deliberately narrow — enough children, all leaves, all delivered by
+    CSS or an icon library, and each small relative to the parent. A card holding a
+    photo and a caption fails on the delivery check, which is the point.
+    """
+    by_id = {e["id"]: e for e in spec}
+    from collections import Counter
+    marked = 0
+    for e in spec:
+        kids = [by_id[c] for c in e.get("children", []) if c in by_id]
+        if len(kids) < min_children:
+            continue
+        if any(k.get("children") for k in kids):
+            continue
+        if not all(k["delivery"] in ("css", "icon_library") for k in kids):
+            continue
+        pa = max(1, e["size_px"][0] * e["size_px"][1])
+        if any(k["size_px"][0] * k["size_px"][1] > max_child_frac * pa for k in kids):
+            continue
+        classes = Counter(k["class"] for k in kids)
+        e["repeats"] = {"cells": len(kids),
+                        "cell_classes": dict(classes),
+                        "child_ids": [k["id"] for k in kids]}
+        e["flags"].append(
+            f"repeating: {len(kids)} uniform CSS cells; build as one component")
+        for k in kids:
+            k["collapsible_into"] = e["id"]
+        marked += 1
+    return marked
+
+
+def summarize(spec):
+    from collections import Counter
+    by_class = Counter(e["class"] for e in spec)
+    by_delivery = Counter(e["delivery"] for e in spec)
+    return {
+        "regions": len(spec),
+        "by_class": dict(by_class),
+        "by_delivery": dict(by_delivery),
+        "total_effort": sum(e["cost"] for e in spec),
+        "to_generate": sum(1 for e in spec
+                           if e["delivery"].startswith("asset") and e["regenerable"]),
+        "to_extract": sum(1 for e in spec if e["delivery"] == "asset_exact"),
+        "flagged": sum(1 for e in spec if e["flags"]),
+    }
