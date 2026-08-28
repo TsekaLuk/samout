@@ -24,6 +24,44 @@ from samout.observe import observe, recall_audit
 from samout.store import Store
 
 
+MIN_SIDE = 320          # below this SAM 3 finds nothing usable
+MAX_PIXELS = 40_000_000  # guard against a multi-hundred-megapixel export
+
+
+def check_input(image, path):
+    """Fail early and specifically, rather than deep in a stage.
+
+    A 120x80 image produced zero regions and then crashed on `max()` of an empty
+    tree — an error that says nothing about the real problem. Preconditions the
+    pipeline depends on belong at the entrance.
+    """
+    w, h = image.size
+    if min(w, h) < MIN_SIDE:
+        raise SystemExit(
+            f"{path} is {w}x{h}; the shortest side must be at least {MIN_SIDE}px.\n"
+            "SAM 3 segments at a fixed internal resolution, so a thumbnail yields "
+            "no usable regions. Supply the full-resolution mockup.")
+    if w * h > MAX_PIXELS:
+        raise SystemExit(
+            f"{path} is {w}x{h} ({w * h / 1e6:.0f} MP), above the {MAX_PIXELS / 1e6:.0f} "
+            "MP guard. Downscale it first — the per-region work is linear in area "
+            "and the VLM sees a downscaled copy anyway.")
+
+
+def report_empty(regions, path):
+    """Zero regions is a legitimate answer for a blank canvas and a bug otherwise.
+    Either way it must not surface as a stack trace three stages later."""
+    if regions:
+        return False
+    print(f"\nNo regions detected in {path}.")
+    print("  If this is a UI mockup, the likely causes are:")
+    print("    - the image is a flat colour or near-empty")
+    print("    - detection thresholds are too high (try --sam3 with a lower "
+          "cfg.detect.threshold)")
+    print("    - OmniParser weights are absent AND SAM 3 found no concepts")
+    return True
+
+
 def ref_measured(ref):
     """`measure` output, pulled back out of the reference map `store` persists."""
     return {rid: v.get("measured", {}) for rid, v in (ref or {}).items()}
@@ -60,7 +98,10 @@ def main():
     if args.no_uidetect:
         cfg.uidetect.enabled = False
 
+    if not args.image.exists():
+        raise SystemExit(f"{args.image} does not exist")
     image = Image.open(args.image).convert("RGB")
+    check_input(image, args.image)
     store = Store(args.out)
     page = [0, 0, image.width, image.height]
     split_parents = set()
@@ -183,10 +224,13 @@ def main():
         print(f"[observe] cached: {len(obs)} observations")
 
     # --- 4. assemble -----------------------------------------------------
+    if report_empty(regions, args.image):
+        return
     print("[assemble]")
     nodes, roots = uitree.annotate(regions, obs, page, cfg.tree, comp_of)
     internal = sum(1 for n in nodes.values() if n.children)
-    print(f"  tree: {len(roots)} roots, depth {max(n.depth for n in nodes.values())}, "
+    depth = max((n.depth for n in nodes.values()), default=0)
+    print(f"  tree: {len(roots)} roots, depth {depth}, "
           f"{internal} internal / {len(nodes) - internal} leaves")
 
     meas = {rid: v.get('measured', {}) for rid, v in (ref or {}).items()}

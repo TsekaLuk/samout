@@ -11,6 +11,7 @@ icons into the wrong bucket twice — in opposite directions, each time with a
 convincing reason. INSIGHTS aha #3-4.
 """
 
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -163,6 +164,13 @@ def _batch(job):
 def observe(context_image, pairs, cfg):
     """`pairs` is [(region_id, PIL.Image)]. Returns {region_id: observation dict}.
 
+    Raises if the API key is missing. `_batch` deliberately swallows per-batch
+    failures so one dead request cannot discard a whole run — but with no key EVERY
+    batch fails, and the swallow turned that into an empty observation set and a
+    spec reading `generate 0, effort 0`. A user reads that as "this mockup has no
+    assets", which is worse than a crash. Check the precondition before the retry
+    machinery gets a chance to hide it.
+
     Re-sweeps whatever is short with a halved batch each pass: a batch that failed on
     transport succeeds alone, and one that failed on output length succeeds when split.
 
@@ -180,6 +188,13 @@ def observe(context_image, pairs, cfg):
     from collections import defaultdict
 
     from .components import consensus
+
+    if pairs and not os.environ.get("DASHSCOPE_API_KEY"):
+        raise RuntimeError(
+            "DASHSCOPE_API_KEY is not set — the observation stage cannot run.\n"
+            "  export DASHSCOPE_API_KEY=sk-...   (Aliyun Bailian / DashScope)\n"
+            "Without it every region would be returned unobserved and the handoff "
+            "spec would look empty rather than failing.")
 
     ctx = encode_image(context_image, max_side=cfg.context_max_side)
     raw = defaultdict(list)

@@ -76,6 +76,17 @@ measured on a 941×1672 mobile app screen that is not included.
 assets. Every stage caches through `store`, so `--from assemble` re-runs classification
 with no API call.
 
+## Verify the install
+
+```bash
+python tests/test_smoke.py
+```
+
+28 checks, no API key and no mockup required: geometry, the taxonomy's delivery
+routes, consensus reconciliation, matte behaviour, tree construction, grid detection,
+and which weights are present. Optional weights report `SKIP` rather than failing, so
+a partial install tells you what is missing.
+
 ## Architecture
 
 ```
@@ -103,6 +114,7 @@ samout/
   store.py          the only module that opens a file
 
 eval/score.py       severity-weighted scoring against eval/labels/
+tests/test_smoke.py install check + pure-function assertions, no key needed
 tools/              probe_prompts.py (SAM 3 vocabulary), bench_models.py
 archive/            superseded approaches, kept for provenance — see its README
 ```
