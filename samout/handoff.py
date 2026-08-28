@@ -39,7 +39,33 @@ ATOMIC_CONTENT = set()
 MARK_MAX_CHILDREN = 2
 
 
-def _flags(cls, obs, node, component_size, spec_class_of_ancestor):
+# TRIED AND ABANDONED — left at 0 (off) with the evidence, so it is not re-attempted.
+#
+# Generating from a small crop of a detailed SCENE fails: a 72x71 nebula came back
+# an abstract smear, a 23x93 cosmic banner likewise. A 73x70 icon of the same pixel
+# count came back clean, as did four photographs of 5-13k px. The failure is real
+# and worth warning about — a bad asset that looks successful is the worst outcome
+# in this pipeline.
+#
+# But no predictor was found. Five candidates, measured on the eight generated
+# assets, all interleave successes and failures:
+#     pixel count      #39 failed at 5112, #41 succeeded at 5110
+#     colour count     849 (fail) vs 700 (success)
+#     entropy          7.377 (fail) vs 7.300 (success)
+#     information density  11.87 (fail) vs 8.57 (success)
+#     post-hoc similarity of result to reference — fully overlapping ranges
+#
+# And a size gate cannot work here regardless: the median asset on the test board is
+# 1599 px, so any threshold covering both failures (5112, 2139) flags 74-90% of all
+# assets. A warning on nine assets in ten is not a warning.
+#
+# What would actually settle it is a screen with enough labelled generations to
+# calibrate on, which does not exist yet. Until then this stays off rather than
+# shipping a gate that is either useless or arbitrary.
+REFERENCE_THIN_PX = 0
+
+
+def _flags(cls, obs, node, component_size, spec_class_of_ancestor, node_size=None):
     """Handoff defects, in the vocabulary a design review would use."""
     out = []
     if obs.get("has_baked_text"):
@@ -54,6 +80,22 @@ def _flags(cls, obs, node, component_size, spec_class_of_ancestor):
         out.append("review: low observation confidence")
     if cls == "product_icon":
         out.append("prefer SVG redraw if the icon language is systematic")
+    # Reference thinness. Generation from a small crop of a detailed SCENE fails —
+    # a 72x71 nebula came back as an abstract smear — while a 73x70 icon of the same
+    # pixel count came back clean. Five candidate predictors were tried on the eight
+    # generated assets (pixel count, colour count, entropy, information density, and
+    # post-hoc similarity of the result to the reference) and NONE separated the two
+    # groups; the successes and failures interleave on every one.
+    #
+    # So this does not claim to predict failure. It marks the regions where the
+    # reference is thin enough that the question is open, because the alternative —
+    # a bad asset entering the handoff looking like a good one — is the worse error.
+    # Narrow it when a screen exists that can actually calibrate it.
+    if REFERENCE_THIN_PX and deliver(cls)["delivery"].startswith("asset"):
+        px = node_size[0] * node_size[1] if node_size else 0
+        if 0 < px <= REFERENCE_THIN_PX:
+            out.append(f"thin reference: {px}px source; verify the generated asset "
+                       "by eye — detailed scenes at this size have failed")
     if component_size > 1 and node.is_leaf:
         out.append(f"component: {component_size} instances share this class; "
                    "build once, reuse")
@@ -183,7 +225,8 @@ def build(regions, nodes, observations, components, describe=None, measured=None
                           "closest_library_icon", "confidence")},
             "reference": describe.get(rid, {}),
             "measured": measured.get(rid, {}),
-            "flags": _flags(cls, obs, node, comp_size.get(rid, 1), anc),
+            "flags": _flags(cls, obs, node, comp_size.get(rid, 1), anc,
+                            node_size=list(r.size)),
         }
         if obs.get("regen_prompt") and d["delivery"].startswith("asset"):
             entry["regen"] = {

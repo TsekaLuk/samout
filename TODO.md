@@ -152,6 +152,25 @@ accepts precomputed `vision_embeds`; encode once, reuse across prompts. Untested
 
 ---
 
+## Open, and not yet answerable
+
+### Generation quality on thin references
+Two of eight generated assets came back unusable — both small crops of detailed
+*scenes* (a nebula, a cosmic banner). Icons and photographs of the same pixel count
+came back clean, so the failure is about scene complexity against resolution, not
+size alone.
+
+No predictor survives measurement. Pixel count, colour count, entropy, information
+density and post-hoc similarity between the result and its reference were each
+tabulated across the eight; successes and failures interleave on every one. A size
+gate is doubly dead — the median asset on that board is 1599 px, so any threshold
+covering the two failures flags 74-90% of everything.
+
+The gate is left off in `handoff.py` with the numbers recorded, rather than shipping
+one that is useless or arbitrary. What would settle it is a screen with enough
+labelled generations to calibrate against. Until then a bad asset can enter the
+handoff looking correct, which is the honest state of this stage.
+
 ## L — Low / deferred
 
 - **L10. Disco ball (#19)** — a hard segmentation failure, mask is a vertical sliver.
