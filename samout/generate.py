@@ -275,10 +275,26 @@ def generate_all(spec, cutouts_dir, out_dir, model=DEFAULT_MODEL, workers=6,
 
     # Cut sprites serially — one shared SAM 2 / ViTMatte instance, not thread-safe.
     by_id = {e["id"]: e for e in spec}
-    cut = 0
+    cut = skipped = 0
     if cut_out_generated is not None:
         for r in results:
-            if r.get("error") or by_id[r["id"]].get("class") == "photography":
+            if r.get("error"):
+                continue
+            entry = by_id[r["id"]]
+            # Photographs normally ship in a frame — a card cover or a list
+            # thumbnail — and cutting one out throws away its composition. But
+            # "photograph" does not imply "rectangular": a circular avatar, a
+            # portrait over a gradient, a packshot on a page all need alpha.
+            #
+            # The observation stage already answers this per region, so ask it
+            # rather than deciding by class. Keying on the class alone meant one
+            # asset silently had no sprite and looked like a cutout failure; it
+            # was a design decision with no way out.
+            if entry.get("class") == "photography" and not (
+                    entry.get("observed") or {}).get("needs_transparency"):
+                r["sprite"] = None
+                r["sprite_skipped"] = "photograph delivered framed; no alpha needed"
+                skipped += 1
                 continue
             src = Path(r.get("path", ""))
             if not src.exists():
@@ -295,6 +311,10 @@ def generate_all(spec, cutouts_dir, out_dir, model=DEFAULT_MODEL, workers=6,
     total = time.time() - t0
     if verbose:
         ok = sum(1 for r in results if not r.get("error"))
-        print(f"{ok}/{len(todo)} generated, {cut} sprites cut  "
-              f"— api {api_s:.0f}s, total {total:.0f}s")
+        failed = sum(1 for r in results
+                     if not r.get("error") and not r.get("sprite")
+                     and not r.get("sprite_skipped"))
+        print(f"{ok}/{len(todo)} generated — {cut} sprites cut, "
+              f"{skipped} framed by design, {failed} cutout failures  "
+              f"(api {api_s:.0f}s, total {total:.0f}s)")
     return results
