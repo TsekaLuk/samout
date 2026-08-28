@@ -34,6 +34,10 @@ from .taxonomy import classify, deliver
 # box), not a rule-ordering one. It belongs with the bundling work.
 ATOMIC_CONTENT = set()
 
+# A brand lockup resolves into at most one separately-detected part. Above this it
+# is a container that happens to include a mark. See the `is_brand_mark` branch.
+MARK_MAX_CHILDREN = 2
+
 
 def _flags(cls, obs, node, component_size, spec_class_of_ancestor):
     """Handoff defects, in the vocabulary a design review would use."""
@@ -101,9 +105,23 @@ def build(regions, nodes, observations, components, describe=None, measured=None
         # turned two venue photos into layout containers and dropped them from the
         # asset list entirely; the same ordering bug previously stripped a brand
         # badge of its never-regenerate flag.
-        if obs.get("is_brand_mark"):
+        if obs.get("is_brand_mark") and len(node.children) < MARK_MAX_CHILDREN:
             class_of[rid] = "brand_asset"
             why_of[rid] = "identity-locked mark (outranks structure)"
+        elif obs.get("is_brand_mark"):
+            # The observer says "brand" for a region that merely CONTAINS the logo:
+            # a top app bar (4 children: clock, status, logo, scan), a benefits row
+            # (5), a product card (2). Marked as art, a coding agent would extract
+            # the whole strip instead of the wordmark inside it — and the error is
+            # invisible downstream, because the class looks right.
+            #
+            # A lockup decomposes into at most one separately-detected part (a crown
+            # over "VIP"); a container holds several distinct elements. Measured
+            # across two screens: real marks had 0-1 children, every false one had
+            # 2, 4 or 5. The mark itself is still classified on its own region.
+            class_of[rid] = "composite"
+            why_of[rid] = (f"contains a brand mark but holds {len(node.children)} "
+                           "classified elements — a region with a logo, not a logo")
         elif obs.get("content_type") in ATOMIC_CONTENT:
             cls, why = classify(obs, measured.get(rid))
             class_of[rid] = cls
